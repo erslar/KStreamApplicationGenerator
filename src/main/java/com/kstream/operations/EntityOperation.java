@@ -53,12 +53,12 @@ public class EntityOperation<K, V, T, VR> {
 					return list;
 				}, new ArrayListSerde(serdeType), storageName);
 
-		KTable<K, Map<String, ArrayList<V>>> labledGroupedTable = groupedTable.mapValues(value -> {
+		KTable<K, Map<String, ArrayList<V>>> labeledGroupedTable = groupedTable.mapValues(value -> {
 			Map<String, ArrayList<V>> map = new HashMap<String, ArrayList<V>>();
 			map.put(labelName, value);
 			return map;
 		});
-		return labledGroupedTable;
+		return labeledGroupedTable;
 	}
 
 	/**

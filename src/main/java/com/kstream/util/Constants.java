@@ -8,4 +8,8 @@ public interface Constants {
 
 	final static String OUTPUT_SCHEMA1 = "{\"name\":\"CustomerPolicyClaimPaymentList\",\"type\":\"record\",\"fields\":[{\"name\":\"policyRecords\",\"type\":{\"type\":\"array\",\"default\": [],\"items\":{\"name\":\"Data\",\"type\":\"record\",\"fields\":[{\"name\":\"policyendtime\",\"type\":\"string\"},{\"name\":\"policystarttime\",\"type\":\"string\"},{\"name\":\"pvar0\",\"type\":\"string\"},{\"name\":\"policy\",\"type\":\"string\"},{\"name\":\"pvar1\",\"type\":\"string\"}]}}},{\"name\":\"customerRecords\",\"type\":{\"type\":\"array\",\"default\": [], \"items\":{\"name\":\"customerData\",\"type\":\"record\",\"fields\":[{\"name\":\"customer\",\"type\":\"string\"},{\"name\":\"customertime\",\"type\":\"string\"},{\"name\":\"address\",\"type\":\"string\"}]}}}]}";
 
+	static final String PIPELINE_PROPERTY_FILE = "templates/template.properties";
+
+	static final String CUSTOM_PROPERTY_FILE = "custom.properties";
+
 }

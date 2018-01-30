@@ -1,0 +1,151 @@
+## KStreamApplicationTemplate.vm
+package $packageName;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Map;
+import java.util.Properties;
+import org.apache.commons.lang3.StringUtils;
+
+import org.apache.avro.generic.GenericRecord;
+import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.Serde;
+import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.serialization.Serializer;
+import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Produced;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.kstream.operations.EntityOperation;
+import com.kstream.util.Constants;
+import com.kstream.util.PropertyUtil;
+import com.kstream.util.StreamConfiguration;
+
+import io.confluent.kafka.serializers.KafkaAvroDeserializer;
+import io.confluent.kafka.serializers.KafkaAvroSerializer;
+
+## Generic Pipeline to join two kafka topics
+  
+public class $className {
+
+	public static Logger logger = LoggerFactory.getLogger(${className}.class);
+
+	public static void main(String[] args) {
+
+		EntityOperation entityOperation = new EntityOperation<>();
+
+		Properties customProperties = PropertyUtil.getProperties("${templatePropertyFile}");
+	
+		String methodName = new Object() {
+		}.getClass().getEnclosingMethod().getName();
+
+		long timestamp = new Date().getTime();
+
+		String outputTopic = customProperties.getProperty("outputTopic");
+	 
+		try {
+
+			Properties streamsConfiguration = StreamConfiguration.getConf("${customPropertyFile}");
+
+			## Define the Serde for Inout and output topic
+			Serializer kafkaAvroSerializer = new KafkaAvroSerializer();
+			kafkaAvroSerializer.configure(streamsConfiguration, false);
+
+			Deserializer kafkaAvroDeserializer = new KafkaAvroDeserializer();
+			kafkaAvroDeserializer.configure(streamsConfiguration, false);
+
+			Serde<GenericRecord> avroSerde = Serdes.serdeFrom(kafkaAvroSerializer, kafkaAvroDeserializer);
+			Serde outputKeySerde = Serdes.ByteArray();
+			
+			StreamsBuilder builder = new StreamsBuilder();
+			## Read the kafka topics
+			
+			#foreach($i in [1..$topicNumbers]) 
+ 				String topic${i}_name = customProperties.getProperty("topic${i}");
+ 				
+ 				KStream<byte[], GenericRecord> topic${i} = builder.stream(topic${i}_name);
+			#end
+	 
+			## Define the Sequence of operations
+			#set($max_n=3)   ## assumption for Depth = 3 for POC
+			#set($max_m=4)   ## Assumption the sequence of operations = 4 for POC
+			String storage = StringUtils.EMPTY; 
+			#foreach($i in [1..${max_n}])
+				#set($counter=1)
+				#foreach($j in [1..${max_m}]) 
+						#set($opKey="op${i}_${j}")
+						#set($op="${opKey}.operation")
+						#if($propertyMap.containsKey(${op}))
+						 	#set($value=$propertyMap.get(${op}))
+						 	#if($value == 'groupby')
+	 							 	#set($opSrc="${opKey}.src")
+	 							#set($opOutputLabel="${opKey}.outputLabel")
+	 							#if($propertyMap.containsKey($opSrc))
+	 								#set($opSrcValue=$propertyMap.get($opSrc))
+	 								#if($propertyMap.containsKey($opOutputLabel))
+	 									#set($opSrcOutputLabel=$propertyMap.get($opOutputLabel))
+	 		storage = String.format("%1$s_store_${j}_%2$s", methodName, timestamp);
+			KTable<byte[], Map<String, ArrayList<GenericRecord>>> ${opSrcOutputLabel} = entityOperation
+						.groupAndAggregateLabel($opSrcValue, avroSerde, storage, "${opSrcOutputLabel}");
+									#end
+								#end
+							#end
+							#if($value == 'join')
+								#set($opLHSsrc="${opKey}.lhs.src")
+								#set($opRHSsrc="${opKey}.rhs.src")
+	 							#set($opOutputLabel="${opKey}.outputLabel")
+	 							#set($opOutputSchema="${opKey}.outputSchema")
+	 							#if($propertyMap.containsKey($opLHSsrc) && $propertyMap.containsKey($opRHSsrc))
+	 								#set($opLHSsrcValue=$propertyMap.get($opLHSsrc))
+	 								#set($opRHSsrcValue=$propertyMap.get($opRHSsrc))
+	 								#if($propertyMap.containsKey($opOutputLabel))
+	 									#set($opSrcOutputLabel=$propertyMap.get($opOutputLabel))
+	 									#set($opOutputSchemaValue=$propertyMap.get($opOutputSchema))
+	 	
+	 		KTable<byte[], GenericRecord> ${opSrcOutputLabel} = entityOperation.join(${opLHSsrcValue}, ${opRHSsrcValue},
+										${opOutputSchemaValue});
+									#end
+								#end
+							#end
+						#else
+							#set($counter = $counter + 1)
+						#end
+						#if( $counter == 3) 
+							#break;
+						#end
+						
+				#end
+			#end
+		 	
+			#foreach($i in [1..$max_n])
+				#set($outputKey = "finalOutput.${i}.name")
+				#if($propertyMap.containsKey($outputKey))
+					#set($outputVar=$propertyMap.get($outputKey))
+					#set($outputType = "finalOutput.${i}.type")
+					#if($propertyMap.containsKey($outputType))
+						#set($outputTypeValue=$propertyMap.get($outputType))
+						#if($outputTypeValue == "stream")
+							${outputVar}.to(outputTopic, Produced.with(outputKeySerde, avroSerde));
+						#elseif($outputTypeValue == "table")
+							${outputVar}.toStream().to(outputTopic, Produced.with(outputKeySerde, avroSerde));
+						#end
+					#end
+				#end
+			 #end
+		
+			KafkaStreams streams = new KafkaStreams(builder.build(), streamsConfiguration);
+			streams.cleanUp();
+			streams.start();
+			// streams.close();
+
+		} finally {
+
+			// RestUtils.deleteTopics(firstTopic, secondTopic, outputTopic);
+		}
+
+	}
+}
