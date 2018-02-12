@@ -3,12 +3,14 @@ package com.kstream.operations;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.avro.Schema;
@@ -40,8 +42,9 @@ import com.kstream.util.serde.hashmap.HashMapSerde;
 import com.kstream.util.serde.list.ArrayListSerde;
 
 public class EntityOperation<K, V, T> {
-	
+
 	public static Logger logger = Logger.getLogger(EntityOperation.class);
+
 	// VR, K1, KR, V1
 	/**
 	 * Group the records based on the input stream key
@@ -99,14 +102,8 @@ public class EntityOperation<K, V, T> {
 				ArrayList::new,
 				// aggregator
 				(key, value, list) -> {
-					
-					logger.info("---- groupAndAggregateLabel method : Key.----------------- ");
-					logger.info(key);
-					logger.info(key.getClass());
-					
+
 					list.add(value);
-					
-					logger.info(list);
 					return list;
 				}, new ArrayListSerde(serdeType), storageName);
 
@@ -117,7 +114,7 @@ public class EntityOperation<K, V, T> {
 			logger.info(map);
 			return map;
 		});
-		
+
 		return labeledGroupedTable;
 	}
 
@@ -145,7 +142,8 @@ public class EntityOperation<K, V, T> {
 	 *         keys, and values that represent the latest aggregate for each key
 	 */
 	public KTable<byte[], Map<String, ArrayList<V>>> groupByCustomKeyAndAggregateLabel(KStream<K, V> streamObject,
-			String customKey, Serde<byte[]> keySerdeType, Serde<V> valueSerdeType, String storageName, String labelName) {
+			String customKey, Serde<byte[]> keySerdeType, Serde<V> valueSerdeType, String storageName,
+			String labelName) {
 
 		KGroupedStream<byte[], V> kGroupedStreams = streamObject.groupBy((key, value) -> {
 			Object customKeyValue = null;
@@ -159,15 +157,15 @@ public class EntityOperation<K, V, T> {
 			}
 			logger.info(customKeyValue);
 			byte[] finalKey = null;
-			finalKey =  customKeyValue.toString().getBytes();
-		 //	finalKey = getDataTypeFromSerdeType(keySerdeType, customKeyValue);
-			logger.info("//-----------------------groupByCustomKeyAndAggregateLabel method : FinalKey------------------//");
+			finalKey = customKeyValue.toString().getBytes();
+			// finalKey = getDataTypeFromSerdeType(keySerdeType,
+			// customKeyValue);
+			logger.info(
+					"//-----------------------groupByCustomKeyAndAggregateLabel method : FinalKey------------------//");
 			logger.info(finalKey);
 			logger.info(finalKey.getClass());
 			return finalKey;
-		}
-		, Serialized.with(Serdes.ByteArray(), valueSerdeType)
-				);
+		}, Serialized.with(Serdes.ByteArray(), valueSerdeType));
 		KTable<byte[], ArrayList<V>> kGroupedTable = kGroupedStreams.aggregate(
 				// initializer
 				() -> new ArrayList<V>(), (customKeyValue, value, valueList) -> {
@@ -177,7 +175,7 @@ public class EntityOperation<K, V, T> {
 				}, new ArrayListSerde(valueSerdeType), storageName
 
 		);
- 
+
 		KTable<byte[], Map<String, ArrayList<V>>> labeledGroupedTable = kGroupedTable.mapValues(value -> {
 			Map<String, ArrayList<V>> map = new HashMap<String, ArrayList<V>>();
 			map.put(labelName, value);
@@ -192,6 +190,7 @@ public class EntityOperation<K, V, T> {
 			String customKey, Serde<T> keySerdeType, Serde<V> valueSerdeType, String storageName, String labelName) {
 
 		KGroupedStream<T, V> kGroupedStreams = streamObject.groupBy((key, value) -> {
+			logger.info(customKey);
 			Object customKeyValue = null;
 			if (value instanceof GenericRecord) {
 				GenericRecord value1 = (GenericRecord) value;
@@ -203,15 +202,17 @@ public class EntityOperation<K, V, T> {
 			}
 			logger.info(customKeyValue);
 			T finalKey = null;
-		//	finalKey =  customKeyValue.toString().getBytes();
-		 	finalKey = getDataTypeFromSerdeType(keySerdeType, customKeyValue);
-			logger.info("//-----------------------groupByCustomKeyAndAggregateLabel method : FinalKey------------------//");
+			System.out.println("//--------------- customKeyValue------------//");
+			System.out.println(customKeyValue);
+			System.out.println(value);
+			// finalKey = customKeyValue.toString().getBytes();
+			finalKey = getDataTypeFromSerdeType(keySerdeType, customKeyValue);
+			logger.info(
+					"//-----------------------groupByCustomKeyAndAggregateLabel method : FinalKey------------------//");
 			logger.info(finalKey);
 			logger.info(finalKey.getClass());
 			return finalKey;
-		}
-		, Serialized.with(keySerdeType, valueSerdeType)
-				);
+		}, Serialized.with(keySerdeType, valueSerdeType));
 		KTable<T, ArrayList<V>> kGroupedTable = kGroupedStreams.aggregate(
 				// initializer
 				() -> new ArrayList<V>(), (customKeyValue, value, valueList) -> {
@@ -221,7 +222,7 @@ public class EntityOperation<K, V, T> {
 				}, new ArrayListSerde(valueSerdeType), storageName
 
 		);
- 
+
 		KTable<T, Map<String, ArrayList<V>>> labeledGroupedTable = kGroupedTable.mapValues(value -> {
 			Map<String, ArrayList<V>> map = new HashMap<String, ArrayList<V>>();
 			map.put(labelName, value);
@@ -231,7 +232,7 @@ public class EntityOperation<K, V, T> {
 		logger.info(labeledGroupedTable);
 		return labeledGroupedTable;
 	}
-	
+
 	/**
 	 * Join two Ktables
 	 * 
@@ -255,42 +256,101 @@ public class EntityOperation<K, V, T> {
 		// writing data in GenericRecord format
 		logger.info("//--------------Join operation ------------------//");
 		logger.info("--------Join method logger-----------------");
-		try{
-	 
-		final Schema avroSchema = new Schema.Parser().parse(schema);
-		GenericRecord record = new GenericData.Record(avroSchema);
-		KTable<K, GenericRecord> joinedKTable = table1.join(table2, new ValueJoiner<V1, V2, GenericRecord>() {
-			@Override
-			public GenericRecord apply(V1 value1, V2 value2) {
-				logger.info("//--------------Join operation apply method------------------//");
-				logger.info(value1);
-				logger.info(value2);
-				try {
-					if (value1 instanceof Map<?, ?>) {
-						for (Entry<?, ?> entry : ((Map<?, ?>) value1).entrySet()) {
-							String key = (String) entry.getKey();
-							Object entryValue = entry.getValue();
-							record.put(key, entryValue);
+		try {
+
+			final Schema avroSchema = new Schema.Parser().parse(schema);
+			GenericRecord record = new GenericData.Record(avroSchema);
+			KTable<K, GenericRecord> joinedKTable = table1.join(table2, new ValueJoiner<V1, V2, GenericRecord>() {
+				@Override
+				public GenericRecord apply(V1 value1, V2 value2) {
+					logger.info("//--------------Join operation apply method------------------//");
+					logger.info(value1);
+					logger.info(value2);
+					try {
+						if (value1 instanceof Map<?, ?>) {
+							for (Entry<?, ?> entry : ((Map<?, ?>) value1).entrySet()) {
+								String key = (String) entry.getKey();
+								Object entryValue = entry.getValue();
+								record.put(key, entryValue);
+							}
 						}
-					}
-					if (value2 instanceof Map<?, ?>) {
-						for (Entry<?, ?> entry : ((Map<?, ?>) value2).entrySet()) {
-							String key = (String) entry.getKey();
-							Object entryValue = entry.getValue();
-							record.put(key, entryValue);
+						if (value2 instanceof Map<?, ?>) {
+							for (Entry<?, ?> entry : ((Map<?, ?>) value2).entrySet()) {
+								String key = (String) entry.getKey();
+								Object entryValue = entry.getValue();
+								record.put(key, entryValue);
+							}
 						}
+						logger.info("//-------------------- Join record----------------//");
+						logger.info(record);
+						return record;
+					} catch (Exception e) {
+						e.printStackTrace();
+						return null;
 					}
-					logger.info("//-------------------- Join record----------------//");
-					logger.info(record);
-					return record;
-				} catch (Exception e) {
-					e.printStackTrace();
-					return null;
 				}
-			}
-		});
-		return joinedKTable;
-		}catch(Exception e){
+			});
+			return joinedKTable;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+
+	/**
+	 * Join two Ktables
+	 * 
+	 * @param <K>
+	 *            Type of primary key
+	 * @param <V1>
+	 *            Value type for first KTable
+	 * @param <V2>
+	 *            Value type for second KTable
+	 * @param table1
+	 *            first KTable
+	 * @param table2
+	 *            second KTable
+	 * @param schema
+	 *            Schema for merged Record
+	 * @return a {@code KTable<K,GenericRecord} that contains join-records for
+	 *         each key and values computed by the given {@link ValueJoiner},
+	 *         one for each matched record-pair with the same key
+	 */
+	public <V1, V2> KTable<K, Map<?, ?>> join(KTable<K, V1> table1, KTable<K, V2> table2) {
+		// writing data in GenericRecord format
+		logger.info("//--------------Join operation ------------------//");
+		logger.info("--------Join method logger-----------------");
+		try {
+
+			KTable<K, Map<?, ?>> joinedKTable = table1.join(table2, new ValueJoiner<V1, V2, Map<?, ?>>() {
+				@Override
+				public Map<?, ?> apply(V1 value1, V2 value2) {
+					Map<?, ?> joinedMap = new HashMap<>();
+					logger.info("//--------------Join operation apply method------------------//");
+					logger.info(value1);
+					logger.info(value2);
+					try {
+						if (value1 instanceof Map<?, ?> && value2 instanceof Map<?, ?>) {
+
+							Map<?, ?> valueMap1 = (Map<?, ?>) value1;
+							Map<?, ?> valueMap2 = (Map<?, ?>) value2;
+							joinedMap = Stream.of(valueMap1, valueMap2)
+									// .map(Map::entrySet)
+									.flatMap(map -> map.entrySet().stream())
+									.collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+						}
+
+						logger.info("//-------------------- Join record without schema----------------//");
+						logger.info(joinedMap);
+						return joinedMap;
+					} catch (Exception e) {
+						e.printStackTrace();
+						return null;
+					}
+				}
+			});
+			return joinedKTable;
+		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
 		}
@@ -359,17 +419,18 @@ public class EntityOperation<K, V, T> {
 	private <K1> K1 getDataTypeFromSerdeType(Serde<K1> serdeType, Object value) {
 		K1 modifiedValue = null;
 		String serdeTypeClass = serdeType.getClass().getSimpleName();
-//		logger.info("//-------------Inside GetDatatypeFromSerdeType method------------");
-//		logger.info(serdeTypeClass);
-//		logger.info(value);
-//		logger.info(value.getClass());
+		// logger.info("//-------------Inside GetDatatypeFromSerdeType
+		// method------------");
+		// logger.info(serdeTypeClass);
+		// logger.info(value);
+		// logger.info(value.getClass());
 		switch (serdeTypeClass) {
 		case "StringSerde":
-	//		logger.info(" ------------------First case: String_-----------");
+			// logger.info(" ------------------First case: String_-----------");
 			modifiedValue = (K1) value.toString();
 			break;
 		case "ByteArraySerde":
-			modifiedValue = (K1)value.toString().getBytes();
+			modifiedValue = (K1) value.toString().getBytes();
 			break;
 		default:
 			modifiedValue = (K1) value;

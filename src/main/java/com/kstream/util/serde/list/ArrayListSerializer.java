@@ -39,6 +39,7 @@ public class ArrayListSerializer<T> implements Serializer<ArrayList<T>> {
 	        dos.write(bytes);
 	      }
 	    } catch (IOException e) {
+	    e.printStackTrace();
 	      throw new RuntimeException("Unable to serialize ArrayList", e);
 	    }
 	    return baos.toByteArray();

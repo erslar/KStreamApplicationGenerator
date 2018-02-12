@@ -11,5 +11,8 @@ public interface Constants {
 	static final String PIPELINE_PROPERTY_FILE = "templates/template.properties";
 
 	static final String CUSTOM_PROPERTY_FILE = "custom.properties";
+	
+	
+	static final String STRING_SERDE = "StringSerde";
 
 }

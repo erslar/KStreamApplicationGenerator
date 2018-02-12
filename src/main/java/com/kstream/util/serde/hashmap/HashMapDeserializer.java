@@ -9,24 +9,25 @@ import java.util.Map;
 
 import org.apache.kafka.common.serialization.Deserializer;
 
-public class HashMapDeserializer<K, V> implements Deserializer<HashMap> {
-	private final Deserializer<HashMap> valueDeserializer;
+public class HashMapDeserializer implements Deserializer<HashMap> {
+	//  private final Deserializer<HashMap> valueDeserializer;
 
-	public HashMapDeserializer(final Deserializer<HashMap> valueDeserializer) {
-		this.valueDeserializer = valueDeserializer;
-	}
-
+	/*  public HashMapDeserializer(final Deserializer<HashMap> valueDeserializer) {
+	    this.valueDeserializer = valueDeserializer;
+	  }
+*/
+	 
 	@Override
 	public void configure(Map<String, ?> configs, boolean isKey) {
 		// do nothing
 	}
 
 	@Override
-	public HashMap<K, V> deserialize(String topic, byte[] bytes) {
+	public HashMap deserialize(String topic, byte[] bytes) {
 		if (bytes == null || bytes.length == 0) {
 			return null;
 		}
-		HashMap<K, V> map = new HashMap<>();
+		HashMap map = new HashMap<>();
 		try {
 			final ObjectInputStream dataInputStream = new ObjectInputStream(new ByteArrayInputStream(bytes));
 			final int records = dataInputStream.readInt();
