@@ -1,0 +1,1 @@
+{ "name": "$schemaObjectName", "type": "record", "fields": [$sourceSchema]}

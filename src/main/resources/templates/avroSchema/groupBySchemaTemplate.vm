@@ -1,0 +1,1 @@
+{ "name": "$schemaObjectName", "type": "array", "items": $sourceSchema}
